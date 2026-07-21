@@ -12,7 +12,7 @@ use crate::{app::App, overlay::Rect};
 
 const BTN_LEFT: u32 = 0x110;
 const KEY_ESC: u32 = 1;
-const ZOOM_STEP: f64 = 1.1;
+const ZOOM_STEP: f64 = 1.25;
 const MAX_ZOOM: f64 = 20.0;
 
 impl Dispatch<WlSeat, ()> for App {
