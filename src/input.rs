@@ -14,6 +14,7 @@ const BTN_LEFT: u32 = 0x110;
 const KEY_ESC: u32 = 1;
 const ZOOM_STEP: f64 = 1.25;
 const MAX_ZOOM: f64 = 20.0;
+const DRAG_EASE: f64 = 0.4;
 
 impl Dispatch<WlSeat, ()> for App {
     fn event(
@@ -65,14 +66,20 @@ impl Dispatch<WlPointer, ()> for App {
                 if state.dragging {
                     if let Some(index) = state.focus {
                         let (last_x, last_y) = state.pointer_pos;
+                        let (dx, dy) = (surface_x - last_x, surface_y - last_y);
                         let info = state.frames[index].buffer_info.unwrap();
+                        let (buf_w, buf_h) = (info.width as f64, info.height as f64);
                         let overlay = &mut state.overlays[index];
-                        let target = &mut overlay.target;
-                        let per_px = target.w / overlay.width as f64;
-                        target.x = (target.x - (surface_x - last_x) * per_px)
-                            .clamp(0.0, info.width as f64 - target.w);
-                        target.y = (target.y - (surface_y - last_y) * per_px)
-                            .clamp(0.0, info.height as f64 - target.h);
+                        let width = overlay.width as f64;
+                        let pairs = [
+                            (&mut overlay.view, 1.0 - DRAG_EASE),
+                            (&mut overlay.target, 1.0),
+                        ];
+                        for (rect, share) in pairs {
+                            let per_px = rect.w / width;
+                            rect.x = (rect.x - dx * per_px * share).clamp(0.0, buf_w - rect.w);
+                            rect.y = (rect.y - dy * per_px * share).clamp(0.0, buf_h - rect.h);
+                        }
                         state.kick(index, qh);
                     }
                 }
