@@ -8,29 +8,26 @@ use crate::app::App;
 const ANIM_SPEED: f64 = 10.0;
 
 impl App {
-    pub fn kick(&mut self, index: usize, qh: &QueueHandle<Self>) {
-        let overlay = &mut self.overlays[index];
-        if overlay.animating {
+    pub fn kick(&mut self, qh: &QueueHandle<Self>) {
+        if self.animating {
             return;
         }
-        overlay.animating = true;
-        overlay.last_tick = None;
-        overlay.surface.frame(qh, index);
-        self.apply_view(index);
+        self.animating = true;
+        self.last_tick = None;
+        self.overlays[0].surface.frame(qh, 0);
+        self.apply_view();
     }
 
-    fn tick(&mut self, index: usize, time: u32, qh: &QueueHandle<Self>) {
-        let overlay = &mut self.overlays[index];
-
-        let dt = match overlay.last_tick {
+    fn tick(&mut self, time: u32, qh: &QueueHandle<Self>) {
+        let dt = match self.last_tick {
             Some(last) => (time.wrapping_sub(last) as f64 / 1000.0).clamp(0.0, 0.1),
             None => 1.0 / 60.0,
         };
-        overlay.last_tick = Some(time);
+        self.last_tick = Some(time);
 
         let alpha = 1.0 - (-dt * ANIM_SPEED).exp();
-        let target = overlay.target;
-        let view = &mut overlay.view;
+        let target = self.target;
+        let view = &mut self.view;
         view.x += (target.x - view.x) * alpha;
         view.y += (target.y - view.y) * alpha;
         view.w += (target.w - view.w) * alpha;
@@ -42,22 +39,34 @@ impl App {
             && (target.h - view.h).abs() < 0.05;
 
         if done {
-            overlay.view = target;
-            overlay.animating = false;
-            overlay.last_tick = None;
+            self.view = target;
+            self.animating = false;
+            self.last_tick = None;
         } else {
-            overlay.surface.frame(qh, index);
+            self.overlays[0].surface.frame(qh, 0);
         }
 
-        self.apply_view(index);
+        self.apply_view();
     }
 
-    fn apply_view(&self, index: usize) {
-        let overlay = &self.overlays[index];
-        let v = overlay.view;
-        overlay.viewport.set_source(v.x, v.y, v.w, v.h);
-        overlay.surface.damage(0, 0, i32::MAX, i32::MAX);
-        overlay.surface.commit();
+    pub fn apply_view(&self) {
+        let v = self.view;
+        for (index, overlay) in self.overlays.iter().enumerate() {
+            let output = &self.outputs[index];
+            let fx = (output.x as f64 - self.bbox.x) / self.bbox.w;
+            let fy = (output.y as f64 - self.bbox.y) / self.bbox.h;
+            let fw = overlay.width as f64 / self.bbox.w;
+            let fh = overlay.height as f64 / self.bbox.h;
+
+            let sx = v.x + fx * v.w;
+            let sy = v.y + fy * v.h;
+            let sw = (fw * v.w).min(self.canvas.w - sx);
+            let sh = (fh * v.h).min(self.canvas.h - sy);
+
+            overlay.viewport.set_source(sx, sy, sw, sh);
+            overlay.surface.damage(0, 0, i32::MAX, i32::MAX);
+            overlay.surface.commit();
+        }
     }
 }
 
@@ -66,12 +75,12 @@ impl Dispatch<WlCallback, usize> for App {
         state: &mut Self,
         _callback: &WlCallback,
         event: wl_callback::Event,
-        data: &usize,
+        _data: &usize,
         _conn: &Connection,
         qh: &QueueHandle<Self>,
     ) {
         if let wl_callback::Event::Done { callback_data } = event {
-            state.tick(*data, callback_data, qh);
+            state.tick(callback_data, qh);
         }
     }
 }

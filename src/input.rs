@@ -63,25 +63,20 @@ impl Dispatch<WlPointer, ()> for App {
                 state.dragging = false;
             }
             wl_pointer::Event::Motion { surface_x, surface_y, .. } => {
-                if state.dragging {
-                    if let Some(index) = state.focus {
-                        let (last_x, last_y) = state.pointer_pos;
-                        let (dx, dy) = (surface_x - last_x, surface_y - last_y);
-                        let info = state.frames[index].buffer_info.unwrap();
-                        let (buf_w, buf_h) = (info.width as f64, info.height as f64);
-                        let overlay = &mut state.overlays[index];
-                        let width = overlay.width as f64;
-                        let pairs = [
-                            (&mut overlay.view, 1.0 - DRAG_EASE),
-                            (&mut overlay.target, 1.0),
-                        ];
-                        for (rect, share) in pairs {
-                            let per_px = rect.w / width;
-                            rect.x = (rect.x - dx * per_px * share).clamp(0.0, buf_w - rect.w);
-                            rect.y = (rect.y - dy * per_px * share).clamp(0.0, buf_h - rect.h);
-                        }
-                        state.kick(index, qh);
+                if state.dragging && state.focus.is_some() {
+                    let (last_x, last_y) = state.pointer_pos;
+                    let (dx, dy) = (surface_x - last_x, surface_y - last_y);
+                    let (cw, ch) = (state.canvas.w, state.canvas.h);
+                    let (bw, bh) = (state.bbox.w, state.bbox.h);
+                    let pairs = [
+                        (&mut state.view, 1.0 - DRAG_EASE),
+                        (&mut state.target, 1.0),
+                    ];
+                    for (rect, share) in pairs {
+                        rect.x = (rect.x - dx * (rect.w / bw) * share).clamp(0.0, cw - rect.w);
+                        rect.y = (rect.y - dy * (rect.h / bh) * share).clamp(0.0, ch - rect.h);
                     }
+                    state.kick(qh);
                 }
                 state.pointer_pos = (surface_x, surface_y);
             }
@@ -96,23 +91,24 @@ impl Dispatch<WlPointer, ()> for App {
                 ..
             } => {
                 let Some(index) = state.focus else { return };
-                let info = state.frames[index].buffer_info.unwrap();
-                let overlay = &mut state.overlays[index];
-                let (buf_w, buf_h) = (info.width as f64, info.height as f64);
+                let output = &state.outputs[index];
+                let gx = ((output.x as f64 - state.bbox.x + state.pointer_pos.0) / state.bbox.w)
+                    .clamp(0.0, 1.0);
+                let gy = ((output.y as f64 - state.bbox.y + state.pointer_pos.1) / state.bbox.h)
+                    .clamp(0.0, 1.0);
+                let (cw, ch) = (state.canvas.w, state.canvas.h);
 
-                let old = overlay.target;
-                let w = (old.w * ZOOM_STEP.powf(value / 15.0)).clamp(buf_w / MAX_ZOOM, buf_w);
-                let h = w * buf_h / buf_w;
-                let fx = (state.pointer_pos.0 / overlay.width as f64).clamp(0.0, 1.0);
-                let fy = (state.pointer_pos.1 / overlay.height as f64).clamp(0.0, 1.0);
+                let old = state.target;
+                let w = (old.w * ZOOM_STEP.powf(value / 15.0)).clamp(cw / MAX_ZOOM, cw);
+                let h = w * ch / cw;
 
-                overlay.target = Rect {
-                    x: (old.x + fx * (old.w - w)).clamp(0.0, buf_w - w),
-                    y: (old.y + fy * (old.h - h)).clamp(0.0, buf_h - h),
+                state.target = Rect {
+                    x: (old.x + gx * (old.w - w)).clamp(0.0, cw - w),
+                    y: (old.y + gy * (old.h - h)).clamp(0.0, ch - h),
                     w,
                     h,
                 };
-                state.kick(index, qh);
+                state.kick(qh);
             }
             _ => {}
         }

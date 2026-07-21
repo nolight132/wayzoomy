@@ -1,4 +1,5 @@
 mod app;
+mod canvas;
 mod capture;
 mod input;
 mod instance;

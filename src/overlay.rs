@@ -1,8 +1,6 @@
-use std::fs::File;
-
 use wayland_client::{
     Connection, Dispatch, EventQueue, QueueHandle,
-    protocol::{wl_buffer::WlBuffer, wl_surface::WlSurface},
+    protocol::wl_surface::WlSurface,
 };
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -26,10 +24,6 @@ pub struct Overlay {
     pub width: u32,
     pub height: u32,
     pub configured: bool,
-    pub view: Rect,
-    pub target: Rect,
-    pub animating: bool,
-    pub last_tick: Option<u32>,
 }
 
 impl Dispatch<ZwlrLayerSurfaceV1, usize> for App {
@@ -61,7 +55,6 @@ pub fn create_overlays(
     app: &mut App,
     queue: &mut EventQueue<App>,
     qh: &QueueHandle<App>,
-    buffers: &[(File, WlBuffer)],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let compositor = app.compositor.clone().ok_or("missing wl_compositor")?;
     let layer_shell = app.layer_shell.clone().ok_or("missing zwlr_layer_shell_v1")?;
@@ -85,36 +78,17 @@ pub fn create_overlays(
         let viewport = viewporter.get_viewport(&surface, qh, ());
         surface.commit();
 
-        let buffer_info = app.frames[index].buffer_info.unwrap();
-        let full = Rect {
-            x: 0.0,
-            y: 0.0,
-            w: buffer_info.width as f64,
-            h: buffer_info.height as f64,
-        };
         app.overlays.push(Overlay {
             surface,
             viewport,
             width: 0,
             height: 0,
             configured: false,
-            view: full,
-            target: full,
-            animating: false,
-            last_tick: None,
         });
     }
 
     while !app.overlays.iter().all(|overlay| overlay.configured) {
         queue.blocking_dispatch(app)?;
-    }
-
-    for (index, overlay) in app.overlays.iter().enumerate() {
-        let (_file, buffer) = &buffers[index];
-        overlay.viewport.set_destination(overlay.width as i32, overlay.height as i32);
-        overlay.surface.attach(Some(buffer), 0, 0);
-        overlay.surface.damage(0, 0, i32::MAX, i32::MAX);
-        overlay.surface.commit();
     }
 
     Ok(())

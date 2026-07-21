@@ -24,7 +24,10 @@ use wayland_protocols::wp::viewporter::client::{
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::ZwlrLayerShellV1;
 use wayland_protocols_wlr::screencopy::v1::client::zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1;
 
-use crate::{capture::FrameState, overlay::Overlay};
+use crate::{
+    capture::FrameState,
+    overlay::{Overlay, Rect},
+};
 
 #[allow(dead_code)]
 pub struct OutputInfo {
@@ -53,6 +56,12 @@ pub struct App {
     pub pointer_pos: (f64, f64),
     pub dragging: bool,
     pub running: bool,
+    pub bbox: Rect,
+    pub canvas: Rect,
+    pub view: Rect,
+    pub target: Rect,
+    pub animating: bool,
+    pub last_tick: Option<u32>,
     pub outputs: Vec<OutputInfo>,
     pub frames: Vec<FrameState>,
     pub overlays: Vec<Overlay>,
@@ -167,7 +176,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     queue.roundtrip(&mut app)?;
 
     let buffers = crate::capture::capture_outputs(&mut app, &mut queue, &qh)?;
-    crate::overlay::create_overlays(&mut app, &mut queue, &qh, &buffers)?;
+    crate::overlay::create_overlays(&mut app, &mut queue, &qh)?;
+    let _canvas = crate::canvas::compose(&mut app, &qh, buffers)?;
 
     while app.running {
         queue.blocking_dispatch(&mut app)?;
