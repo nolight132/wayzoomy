@@ -12,18 +12,22 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
 
 use crate::app::App;
 
+#[derive(Clone, Copy, Default)]
+pub struct Rect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
 pub struct Overlay {
     pub surface: WlSurface,
     pub viewport: WpViewport,
     pub width: u32,
     pub height: u32,
     pub configured: bool,
-    pub zoom: f64,
-    pub src_x: f64,
-    pub src_y: f64,
-    pub target_zoom: f64,
-    pub target_src_x: f64,
-    pub target_src_y: f64,
+    pub view: Rect,
+    pub target: Rect,
     pub animating: bool,
     pub last_tick: Option<u32>,
 }
@@ -80,18 +84,21 @@ pub fn create_overlays(
         let viewport = viewporter.get_viewport(&surface, qh, ());
         surface.commit();
 
+        let buffer_info = app.frames[index].buffer_info.unwrap();
+        let full = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: buffer_info.width as f64,
+            h: buffer_info.height as f64,
+        };
         app.overlays.push(Overlay {
             surface,
             viewport,
             width: 0,
             height: 0,
             configured: false,
-            zoom: 1.0,
-            src_x: 0.0,
-            src_y: 0.0,
-            target_zoom: 1.0,
-            target_src_x: 0.0,
-            target_src_y: 0.0,
+            view: full,
+            target: full,
             animating: false,
             last_tick: None,
         });

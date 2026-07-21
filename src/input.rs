@@ -7,7 +7,7 @@ use wayland_client::{
 };
 use wayland_protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::Shape;
 
-use crate::app::App;
+use crate::{app::App, overlay::Rect};
 
 const BTN_LEFT: u32 = 0x110;
 const ZOOM_STEP: f64 = 1.1;
@@ -62,15 +62,12 @@ impl Dispatch<WlPointer, ()> for App {
                         let (last_x, last_y) = state.pointer_pos;
                         let info = state.frames[index].buffer_info.unwrap();
                         let overlay = &mut state.overlays[index];
-                        let sw = info.width as f64 / overlay.target_zoom;
-                        let sh = info.height as f64 / overlay.target_zoom;
-                        let per_px = sw / overlay.width as f64;
-                        overlay.target_src_x = (overlay.target_src_x
-                            - (surface_x - last_x) * per_px)
-                            .clamp(0.0, info.width as f64 - sw);
-                        overlay.target_src_y = (overlay.target_src_y
-                            - (surface_y - last_y) * per_px)
-                            .clamp(0.0, info.height as f64 - sh);
+                        let target = &mut overlay.target;
+                        let per_px = target.w / overlay.width as f64;
+                        target.x = (target.x - (surface_x - last_x) * per_px)
+                            .clamp(0.0, info.width as f64 - target.w);
+                        target.y = (target.y - (surface_y - last_y) * per_px)
+                            .clamp(0.0, info.height as f64 - target.h);
                         state.kick(index, qh);
                     }
                 }
@@ -91,21 +88,18 @@ impl Dispatch<WlPointer, ()> for App {
                 let overlay = &mut state.overlays[index];
                 let (buf_w, buf_h) = (info.width as f64, info.height as f64);
 
-                let old_sw = buf_w / overlay.target_zoom;
-                let old_sh = buf_h / overlay.target_zoom;
+                let old = overlay.target;
+                let w = (old.w * ZOOM_STEP.powf(value / 15.0)).clamp(buf_w / MAX_ZOOM, buf_w);
+                let h = w * buf_h / buf_w;
                 let fx = (state.pointer_pos.0 / overlay.width as f64).clamp(0.0, 1.0);
                 let fy = (state.pointer_pos.1 / overlay.height as f64).clamp(0.0, 1.0);
 
-                overlay.target_zoom = (overlay.target_zoom * ZOOM_STEP.powf(-value / 15.0))
-                    .clamp(1.0, MAX_ZOOM);
-
-                let new_sw = buf_w / overlay.target_zoom;
-                let new_sh = buf_h / overlay.target_zoom;
-                overlay.target_src_x =
-                    (overlay.target_src_x + fx * (old_sw - new_sw)).clamp(0.0, buf_w - new_sw);
-                overlay.target_src_y =
-                    (overlay.target_src_y + fy * (old_sh - new_sh)).clamp(0.0, buf_h - new_sh);
-
+                overlay.target = Rect {
+                    x: (old.x + fx * (old.w - w)).clamp(0.0, buf_w - w),
+                    y: (old.y + fy * (old.h - h)).clamp(0.0, buf_h - h),
+                    w,
+                    h,
+                };
                 state.kick(index, qh);
             }
             _ => {}
