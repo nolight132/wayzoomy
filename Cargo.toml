@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 wayland-client = "0.31.14"
+wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }
 wayland-protocols-wlr = { version = "0.3.9", features = ["client"] }
 rustix = { version = "1", features = ["fs"] }
-memmap2 = "0.9"

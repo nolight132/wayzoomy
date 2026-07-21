@@ -1,5 +1,9 @@
+mod app;
 mod capture;
+mod input;
 mod instance;
+mod overlay;
+mod view;
 
 use instance::InstanceGuard;
 
@@ -9,7 +13,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     };
 
-    println!("Wayzoomy started");
-
-    capture::run()
+    app::run()
 }
