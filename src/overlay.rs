@@ -7,7 +7,7 @@ use wayland_client::{
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1::Layer,
-    zwlr_layer_surface_v1::{self, Anchor, ZwlrLayerSurfaceV1},
+    zwlr_layer_surface_v1::{self, Anchor, KeyboardInteractivity, ZwlrLayerSurfaceV1},
 };
 
 use crate::app::App;
@@ -50,7 +50,7 @@ impl Dispatch<ZwlrLayerSurfaceV1, usize> for App {
                 overlay.configured = true;
             }
             zwlr_layer_surface_v1::Event::Closed => {
-                std::process::exit(0);
+                state.running = false;
             }
             _ => {}
         }
@@ -80,6 +80,7 @@ pub fn create_overlays(
         layer_surface.set_anchor(Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right);
         layer_surface.set_exclusive_zone(-1);
         layer_surface.set_size(0, 0);
+        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
 
         let viewport = viewporter.get_viewport(&surface, qh, ());
         surface.commit();

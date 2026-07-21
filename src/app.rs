@@ -3,6 +3,7 @@ use wayland_client::{
     protocol::{
         wl_buffer::WlBuffer,
         wl_compositor::WlCompositor,
+        wl_keyboard::WlKeyboard,
         wl_output::{self, WlOutput},
         wl_pointer::WlPointer,
         wl_registry::{self, WlRegistry},
@@ -45,11 +46,13 @@ pub struct App {
     pub viewporter: Option<WpViewporter>,
     pub seat: Option<WlSeat>,
     pub pointer: Option<WlPointer>,
+    pub keyboard: Option<WlKeyboard>,
     pub cursor_shape_manager: Option<WpCursorShapeManagerV1>,
     pub cursor_shape: Option<WpCursorShapeDeviceV1>,
     pub focus: Option<usize>,
     pub pointer_pos: (f64, f64),
     pub dragging: bool,
+    pub running: bool,
     pub outputs: Vec<OutputInfo>,
     pub frames: Vec<FrameState>,
     pub overlays: Vec<Overlay>,
@@ -159,14 +162,16 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let _registry = conn.display().get_registry(&qh, ());
 
-    let mut app = App::default();
+    let mut app = App { running: true, ..Default::default() };
     queue.roundtrip(&mut app)?;
     queue.roundtrip(&mut app)?;
 
     let buffers = crate::capture::capture_outputs(&mut app, &mut queue, &qh)?;
     crate::overlay::create_overlays(&mut app, &mut queue, &qh, &buffers)?;
 
-    loop {
+    while app.running {
         queue.blocking_dispatch(&mut app)?;
     }
+
+    Ok(())
 }
