@@ -49,11 +49,36 @@ pub fn compose(
     for (index, (src_file, src_buffer)) in buffers.iter().enumerate() {
         let (px, py, info) = placements[index];
         let src = unsafe { memmap2::Mmap::map(src_file)? };
+        let y_invert = app.frames[index].y_invert;
         for row in 0..info.height {
-            let soff = (row * info.stride) as usize;
+            let srow = if y_invert { info.height - 1 - row } else { row };
+            let soff = (srow * info.stride) as usize;
             let doff = ((py + row) * stride + px * 4) as usize;
             let len = (info.width * 4) as usize;
-            canvas[doff..doff + len].copy_from_slice(&src[soff..soff + len]);
+            let dst = &mut canvas[doff..doff + len];
+            let src_row = &src[soff..soff + len];
+            match info.format {
+                wl_shm::Format::Xrgb8888 | wl_shm::Format::Argb8888 => {
+                    dst.copy_from_slice(src_row);
+                }
+                wl_shm::Format::Xbgr8888 | wl_shm::Format::Abgr8888 => {
+                    for (d, s) in dst.chunks_exact_mut(4).zip(src_row.chunks_exact(4)) {
+                        d.copy_from_slice(&[s[2], s[1], s[0], s[3]]);
+                    }
+                }
+                _ => {
+                    let swap = matches!(
+                        info.format,
+                        wl_shm::Format::Xbgr2101010 | wl_shm::Format::Abgr2101010
+                    );
+                    for (d, s) in dst.chunks_exact_mut(4).zip(src_row.chunks_exact(4)) {
+                        let v = u32::from_le_bytes([s[0], s[1], s[2], s[3]]);
+                        let (b, g, r) = ((v >> 2) & 0xff, (v >> 12) & 0xff, (v >> 22) & 0xff);
+                        let (b, r) = if swap { (r, b) } else { (b, r) };
+                        d.copy_from_slice(&[b as u8, g as u8, r as u8, 0xff]);
+                    }
+                }
+            }
         }
         src_buffer.destroy();
     }

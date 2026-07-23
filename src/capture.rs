@@ -21,6 +21,7 @@ pub struct BufferInfo {
 #[derive(Default)]
 pub struct FrameState {
     pub buffer_info: Option<BufferInfo>,
+    pub y_invert: bool,
     pub buffer_done: bool,
     pub ready: bool,
     pub failed: bool,
@@ -44,6 +45,9 @@ impl Dispatch<ZwlrScreencopyFrameV1, usize> for App {
                 stride,
             } => {
                 frame.buffer_info = Some(BufferInfo { format, width, height, stride });
+            }
+            zwlr_screencopy_frame_v1::Event::Flags { flags: WEnum::Value(flags) } => {
+                frame.y_invert = flags.contains(zwlr_screencopy_frame_v1::Flags::YInvert);
             }
             zwlr_screencopy_frame_v1::Event::BufferDone => {
                 frame.buffer_done = true;
@@ -80,7 +84,17 @@ pub fn capture_outputs(
     let mut buffers = Vec::new();
     for (index, frame) in frames.iter().enumerate() {
         let info = app.frames[index].buffer_info.ok_or("no shm format offered")?;
-        if !matches!(info.format, wl_shm::Format::Xrgb8888 | wl_shm::Format::Argb8888) {
+        if !matches!(
+            info.format,
+            wl_shm::Format::Xrgb8888
+                | wl_shm::Format::Argb8888
+                | wl_shm::Format::Xbgr8888
+                | wl_shm::Format::Abgr8888
+                | wl_shm::Format::Xrgb2101010
+                | wl_shm::Format::Argb2101010
+                | wl_shm::Format::Xbgr2101010
+                | wl_shm::Format::Abgr2101010
+        ) {
             return Err(format!("unhandled pixel format {:?}", info.format).into());
         }
         let size = info.stride as usize * info.height as usize;
