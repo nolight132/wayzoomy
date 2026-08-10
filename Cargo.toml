@@ -2,6 +2,12 @@
 name = "wayzoomy"
 version = "0.1.0"
 edition = "2024"
+description = "A lightweight Wayland zoom utility"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/nolight132/wayzoomy"
+readme = "README.md"
+keywords = ["wayland", "zoom", "magnifier", "linux"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 wayland-client = "0.31.14"
