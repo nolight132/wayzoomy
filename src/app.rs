@@ -55,6 +55,8 @@ pub struct App {
     pub focus: Option<usize>,
     pub pointer_pos: (f64, f64),
     pub dragging: bool,
+    pub exit_armed: bool,
+    pub mods_held: bool,
     pub running: bool,
     pub bbox: Rect,
     pub canvas: Rect,
