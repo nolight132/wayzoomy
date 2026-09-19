@@ -11,7 +11,6 @@ use wayland_protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::
 use crate::{app::App, overlay::Rect};
 
 const BTN_LEFT: u32 = 0x110;
-const KEY_ESC: u32 = 1;
 const ZOOM_STEP: f64 = 1.25;
 const MAX_ZOOM: f64 = 20.0;
 const DRAG_EASE: f64 = 0.4;
@@ -81,8 +80,13 @@ impl Dispatch<WlPointer, ()> for App {
                 state.pointer_pos = (surface_x, surface_y);
             }
             wl_pointer::Event::Button { button, state: WEnum::Value(button_state), .. } => {
+                let pressed = button_state == wl_pointer::ButtonState::Pressed;
                 if button == BTN_LEFT {
-                    state.dragging = button_state == wl_pointer::ButtonState::Pressed;
+                    state.dragging = pressed;
+                } else if pressed {
+                    state.exit_armed = true;
+                } else if state.exit_armed {
+                    state.running = false;
                 }
             }
             wl_pointer::Event::Axis {
@@ -125,14 +129,11 @@ impl Dispatch<WlKeyboard, ()> for App {
         _qh: &QueueHandle<Self>,
     ) {
         if let wl_keyboard::Event::Key {
-            key,
             state: WEnum::Value(wl_keyboard::KeyState::Pressed),
             ..
         } = event
         {
-            if key == KEY_ESC {
-                state.running = false;
-            }
+            state.running = false;
         }
     }
 }
